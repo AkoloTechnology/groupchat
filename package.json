@@ -1,0 +1,15 @@
+{
+	"name": "groupchat",
+	"version": "0.0.0",
+	"private": true,
+	"main": "src/app.js",
+    "compatibility_date": "2025-07-06",
+	"scripts": {
+		"deploy": "wrangler deploy",
+		"dev": "wrangler dev",
+		"start": "wrangler dev"
+	},
+	"devDependencies": {
+		"wrangler": "^4.23.0"
+	}
+}
