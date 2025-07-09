@@ -30,23 +30,25 @@
 
         };
         socket.onopen = () => {
-            socket.send(JSON.stringify({ type: "join", name: username}));
+            socket.send(JSON.stringify({ type: "join", username: username}));
         };
         socket.onmessage = (event) => {
             let data = JSON.parse(event.data);
             if(data.type === "usercount") {
                 document.getElementById('usercount').innerHTML = `<p>Connected users: ${data.count}</p>`;
                 return;
-            }
-            if (data.type === "image") {
+            } else if (data.type === "image") {
                 renderImage(base64ToBlob(data.blob, data.blobtype));
                 return;
-            }
-            if (data.type === "message") {
-                output.innerHTML += `<p><b>${data.name}:</b> ${data.message}</p>`;
+            } else if (data.type === "message") {
+                output.innerHTML += `<p><b>${data.username}:</b> ${data.message}</p>`;
                 output.scrollTop = output.scrollHeight;
                 return;
-            }            
+            } else if (data.type === "join") {
+                output.innerHTML += `<p><span style="color:green"><b>${data.username} has joined the chat.</b></span></p>`;
+                output.scrollTop = output.scrollHeight;
+                return;
+            }
         };
         socket.onclose = () => {
             output.innerHTML += "<p>WebSocket connection closed.</p>";
@@ -58,7 +60,7 @@
             const output = document.getElementById('output');
             const message = messageInput.value;
             if (message) {
-                socket.send(JSON.stringify({ type: "message", name: username, message: message }));
+                socket.send(JSON.stringify({ type: "message", username: username, message: message }));
                 messageInput.value = '';
                 output.innerHTML += `<p><span style="color:blue"><b>${username}:</b></span> ${message}</p>`;
                 output.scrollTop = output.scrollHeight;
@@ -71,7 +73,7 @@
                 renderImage(blob);
                 const arrayBuffer = await blob.arrayBuffer();
                 const base64String = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
-                socket.send(JSON.stringify({ type: "image", name: username, blob: base64String, blobtype: blob.type }));
+                socket.send(JSON.stringify({ type: "image", username: username, blob: base64String, blobtype: blob.type }));
             }
         }
         function renderImage(blob) {

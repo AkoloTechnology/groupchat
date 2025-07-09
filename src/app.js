@@ -3,12 +3,12 @@ import { DurableObject } from "cloudflare:workers";
 export class GroupchatDurableObject extends DurableObject {
   constructor(ctx, env) {
     super(ctx, env);
-    this.connectedSockets = this.ctx.getWebSockets() || [];
+    this.connectedSockets = new Set(this.ctx.getWebSockets());
     this.ctx.blockConcurrencyWhile(async () => {
       try {
         this.messageQueue = await this.ctx.storage.get('messageQueue') || [];
       } catch (error) {
-                console.error("Error loading messageQueue from storage:", error);
+        console.error("Error loading messageQueue from storage:", error);
       }
     });
   }
@@ -21,13 +21,12 @@ export class GroupchatDurableObject extends DurableObject {
       return new Response("Chat cleared successfully", { status: 200 });
     }
 
-    const webSocketPair = new WebSocketPair();
-    const [client, server] = Object.values(webSocketPair);
-
+    const [client, server] = Object.values(new WebSocketPair());
     this.ctx.acceptWebSocket(server);
 
-    this.connectedSockets.push(server);
+    this.connectedSockets.add(server);
     console.log(`Socket added. Total connections: ${this.connectedSockets.length}`);
+
     this.updateusercount();   
 
     this.messageQueue.forEach((message) => {
@@ -41,40 +40,68 @@ export class GroupchatDurableObject extends DurableObject {
   }
 
   async webSocketMessage(ws, message) {
-    console.log(`Received message: ${message}`);
     let data = JSON.parse(message);
     if(data.type === "ping") return;
-    if(data.type === "join") message = JSON.stringify({name: "Server", message: `${data.name} has joined the chat.`});
-    if(data.type === "message" || data.type === "image") {
-      this.messageQueue.push(message);
+
+    let broadcastData = {};
+    let replyAll = true;
+    let replyToSender = false;
+    let messageGetsSaved = true;
+
+    console.log(`Message from ${data.username} - Type: ${data.type}`);
+    
+    broadcastData.type = data.type;
+    broadcastData.username = data.username;
+
+    if(data.type === "message") {
+      broadcastData.message = data.message;
+
+    } else if (data.type === "join") {
+
+    } else if (data.type === "image") {
+      broadcastData.blob = data.blob;
+      broadcastData.blobtype = data.blobtype;
+
+    } else if (data.type === "usercount") {
+      this.updateusercount();
+      return;
+
+    } else {
+      console.error(`Unknown message type`);
+      return;
+    }
+    
+    let broadcastMessage = JSON.stringify(broadcastData);
+
+    if(messageGetsSaved) {
+      this.messageQueue.push(broadcastMessage);
       this.ctx.storage.put('messageQueue', this.messageQueue);
     }
-    this.connectedSockets.forEach((socket) => {
-      if (socket != ws) 
-        socket.send(message);
-    });
 
+    if (replyAll) {
+      this.broadcastToAll(replyToSender ? ws : null, broadcastMessage);
+    }
+  }
+
+  broadcastToAll(ws = null, broadcastMessage = `{"type":"empty"}`) {
+    this.connectedSockets.forEach((socket) => {
+      if (socket !== ws && socket.readyState === WebSocket.OPEN) {
+        socket.send(broadcastMessage);
+      }
+    });
   }
 
   async webSocketClose(ws, code, reason, wasClean) {
     console.log(`WebSocket closed: ${code} - ${reason} (Clean: ${wasClean})`);
-    this.removeDisconnectedSocket(ws);
+    this.connectedSockets.delete(ws)
+    this.updateusercount();
+    console.log(`Socket removed. Remaining connections: ${this.connectedSockets.size}`);
     ws.close(code, "Durable Object is closing WebSocket");
   }
 
-  removeDisconnectedSocket(socketToRemove) {
-    this.connectedSockets = this.connectedSockets.filter(
-      (socket) => socket !== socketToRemove
-    );
-    this.updateusercount();
-    console.log(`Socket removed. Remaining connections: ${this.connectedSockets.length}`);
-  }
-
   updateusercount() {
-    this.connectedSockets.forEach((socket) => {
-      let connentedCount = this.connectedSockets.length;
-      socket.send(JSON.stringify({type: "usercount", count: connentedCount}));
-    });
+    let broadcastMessage = `{"type":"usercount","count":${this.connectedSockets.size}}`;
+    this.broadcastToAll(null, broadcastMessage);
   }
 }
 
