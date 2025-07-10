@@ -1,7 +1,8 @@
 name = "groupchat"
 main = "src/app.js"
 workers_dev = true
-compatibility_date = "2025-07-07"
+compatibility_date = "2025-07-09"
+compatibility_flags = ["nodejs_compat_v2"]
 
 [observability]
 enabled = true

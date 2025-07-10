@@ -70,6 +70,10 @@ body {font-family: Arial;}
   background-color: #fd9088; /* Red */
   color: rgb(163, 163, 163);
 }
+
+.showtab {
+  display: block;
+}
 </style>
 </head>
 <body>
@@ -107,17 +111,14 @@ body {font-family: Arial;}
 
 <script>
 function openCity(evt, cityName) {
-  var i, tabcontent, tablinks;
-  tabcontent = document.getElementsByClassName("tabcontent");
-  for (i = 0; i < tabcontent.length; i++) {
-    tabcontent[i].style.display = "none";
-  }
-  tablinks = document.getElementsByClassName("tablinks");
-  for (i = 0; i < tablinks.length; i++) {
-    tablinks[i].className = tablinks[i].className.replace(" active", "");
-  }
-  document.getElementById(cityName).style.display = "block";
-  evt.currentTarget.className += " active";
+  cityName = cityName.replace(/\s+/g, '');
+  const previoustablink = document.querySelector(".active");
+  if(previoustablink) previoustablink.classList.remove("active");
+  evt.currentTarget.classList.add("active");
+
+  const previoustab = document.querySelector(".showtab");
+  if(previoustab) previoustab.classList.remove("showtab");
+  document.querySelector(`#${cityName}`).classList.add("showtab");
 }
 const tab = document.querySelector("#tab");
 const marker = document.querySelector("#marker");
@@ -127,19 +128,20 @@ let disabledelete = false;
 function addtab() {
   // Generate a random city name from the list
 	const cityname = CITY_NAMES[ Math.floor(Math.random() * CITY_NAMES.length) ];
-  if (document.querySelector(`[data-cityname="${cityname}"]`)) {
+  const citynameFormatted = cityname.replace(/\s+/g, '');
+  if (document.querySelector(`[data-cityname="${citynameFormatted}"]`)) {
     addtab();
     return;
   }
 	let newtab = document.createElement("button");
   newtab.classList.add('tablinks');
-  newtab.setAttribute('data-cityname', cityname);
+  newtab.setAttribute('data-cityname', citynameFormatted);
   newtab.textContent = cityname;
-  newtab.onclick = (event) => openCity(event, cityname);
+  newtab.onclick = (event) => openCity(event, citynameFormatted);
   tab.append(newtab);
   let newcontent = document.createElement("div");
   newcontent.classList.add('tabcontent');
-  newcontent.id = cityname;
+  newcontent.id = citynameFormatted;
   newcontent.innerHTML = `<h3>${cityname}</h3><p>${cityname} is a city.</p>`;
   let deleteButton = document.createElement("button");
   deleteButton.textContent = "Delete this tab";

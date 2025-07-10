@@ -53,7 +53,7 @@
         socket.onclose = () => {
             output.innerHTML += "<p>WebSocket connection closed.</p>";
             output.scrollTop = output.scrollHeight;
-            location.reload();
+            //location.reload();
         };
         function sendmessage() {
             const messageInput = document.getElementById('message');            

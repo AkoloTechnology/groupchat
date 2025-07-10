@@ -1,23 +1,36 @@
 import { DurableObject } from "cloudflare:workers";
+import * as crypto from 'node:crypto';
 
 export class GroupchatDurableObject extends DurableObject {
   constructor(ctx, env) {
     super(ctx, env);
     this.connectedSockets = new Set(this.ctx.getWebSockets());
-    this.ctx.blockConcurrencyWhile(async () => {
-      try {
-        this.messageQueue = await this.ctx.storage.get('messageQueue') || [];
-      } catch (error) {
-        console.error("Error loading messageQueue from storage:", error);
+
+    this.sql = ctx.storage.sql;
+    
+    const clearalltables = false;
+    this.sql.exec("SELECT name FROM sqlite_master WHERE type='table';").toArray().forEach((table) => {
+      console.log(`Table found: ${table.name}`);
+      if (table.name == "_cf_KV") return;
+      if (clearalltables) {
+        this.sql.exec(`DROP TABLE "${table.name}";`);
+        console.log(`Dropped table: ${table.name}`);
       }
     });
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS chatrooms(
+      id TEXT PRIMARY KEY,
+      description TEXT,
+      tablename TEXT,
+      data TEXT
+    );`);
+    if(this.sql.exec("SELECT * FROM chatrooms WHERE tablename = 'General';").toArray().length === 0)
+        this.creategeneralchatroom();
   }
 
   async fetch(request) {
     const url = new URL(request.url);
     if (url.pathname.endsWith("/clearchat")) {
-      this.messageQueue = [];
-      await this.ctx.storage.put('messageQueue', []);
+      this.clearchatroom("General");
       return new Response("Chat cleared successfully", { status: 200 });
     }
 
@@ -25,12 +38,13 @@ export class GroupchatDurableObject extends DurableObject {
     this.ctx.acceptWebSocket(server);
 
     this.connectedSockets.add(server);
-    console.log(`Socket added. Total connections: ${this.connectedSockets.length}`);
+    console.log(`Socket added. Total connections: ${this.connectedSockets.size}`);
 
     this.updateusercount();   
 
-    this.messageQueue.forEach((message) => {
-      server.send(message);
+    const generaluuid = this.sql.exec("SELECT id FROM chatrooms WHERE tablename = 'General';").one().id;
+    this.sql.exec(`SELECT * FROM ${generaluuid}`).toArray().forEach((row) => {
+      server.send(row.message);
     });
 
     return new Response(null, {
@@ -74,12 +88,13 @@ export class GroupchatDurableObject extends DurableObject {
     let broadcastMessage = JSON.stringify(broadcastData);
 
     if(messageGetsSaved) {
-      this.messageQueue.push(broadcastMessage);
-      this.ctx.storage.put('messageQueue', this.messageQueue);
+      const generaluuid = this.sql.exec("SELECT id FROM chatrooms WHERE tablename = 'General';").one().id;
+      this.sql.exec(`INSERT INTO ${generaluuid} (id, message) VALUES (?, ?);`, 
+        `message_${crypto.randomUUID().replace(/-/g, '_')}`, broadcastMessage);
     }
 
     if (replyAll) {
-      this.broadcastToAll(replyToSender ? ws : null, broadcastMessage);
+      this.broadcastToAll(replyToSender ? null : ws, broadcastMessage);
     }
   }
 
@@ -102,6 +117,31 @@ export class GroupchatDurableObject extends DurableObject {
   updateusercount() {
     let broadcastMessage = `{"type":"usercount","count":${this.connectedSockets.size}}`;
     this.broadcastToAll(null, broadcastMessage);
+  }
+
+  createnewchatroom(name) {
+    if(name == "General") return 0;
+    const tableuuid = `chatroom_${crypto.randomUUID().replace(/-/g, '_')}`;
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS ${tableuuid} (id TEXT PRIMARY KEY, message TEXT);`);
+    this.sql.exec(`INSERT OR IGNORE INTO chatrooms (id, description, tablename, data) 
+      VALUES (?, ?, ?, ?);`, 
+      tableuuid, `A chat room named ${name}`, name, '{}');
+    return tableuuid;
+  }
+
+  creategeneralchatroom() {
+    const tableuuid = `chatroom_${crypto.randomUUID().replace(/-/g, '_')}`;
+    console.log(`Creating general chat room with table UUID: ${tableuuid}`);
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS ${tableuuid} (id TEXT PRIMARY KEY, message TEXT);`);
+    console.log(`Inserting general chat room into chatrooms table with UUID: ${tableuuid}`);
+    this.sql.exec(`INSERT OR IGNORE INTO chatrooms (id, description, tablename, data) 
+      VALUES (?, ?, ?, ?);`, 
+      tableuuid, 'A chat room named General', 'General', '{}');
+    console.log(`General chat room created with table UUID: ${tableuuid}`);
+  }
+
+  clearchatroom(tableuuid) {
+    this.sql.exec(`DELETE FROM ${tableuuid};`);
   }
 }
 
