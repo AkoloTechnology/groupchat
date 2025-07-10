@@ -11,7 +11,7 @@ name = "GROUPCHAT_DURABLE_OBJECT"
 class_name = "GroupchatDurableObject"
 
 [[migrations]]
-tag = "v1"
+tag = "v2"
 new_sqlite_classes = ["GroupchatDurableObject"]
 
 [assets]
