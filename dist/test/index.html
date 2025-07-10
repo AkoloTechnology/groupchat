@@ -65,6 +65,11 @@ body {font-family: Arial;}
 .styledbuttondelete:hover {
   background-color: #d32f2f; /* Darker Red */
 }
+
+.styledbuttondelete:disabled {
+  background-color: #fd9088; /* Red */
+  color: rgb(163, 163, 163);
+}
 </style>
 </head>
 <body>
@@ -72,7 +77,7 @@ body {font-family: Arial;}
 <h2>Tabs</h2>
 <p>Click on the buttons inside the tabbed menu:</p>
 
-<button class="styledbutton" onclick="addtab()">Add a tab</button>
+<button id="addtab" class="styledbutton" onclick="addtab()">Add a tab</button>
 
 <div id="tab" class="tab">
   <button class="tablinks" data-cityname="London" onclick="openCity(event, 'London')">London</button>
@@ -117,25 +122,41 @@ function openCity(evt, cityName) {
 const tab = document.querySelector("#tab");
 const marker = document.querySelector("#marker");
 const CITY_NAMES = ["New York", "Montreal", "Toronto", "Los Angeles", "Chicago", "Houston", "Phoenix", "Philadelphia", "San Antonio", "San Diego", "Dallas", "San Jose", "Austin", "Jacksonville", "Fort Worth", "Columbus", "Charlotte", "Indianapolis", "Seattle", "Denver", "Washington", "Boston"];
+let disabledelete = false;
 
 function addtab() {
+  // Generate a random city name from the list
 	const cityname = CITY_NAMES[ Math.floor(Math.random() * CITY_NAMES.length) ];
+  if (document.querySelector(`[data-cityname="${cityname}"]`)) {
+    addtab();
+    return;
+  }
 	let newtab = document.createElement("button");
-    newtab.classList.add('tablinks');
-    newtab.setAttribute('data-cityname', cityname);
-    newtab.textContent = cityname;
-    newtab.onclick = (event) => openCity(event, cityname);
-    tab.append(newtab);
-    let newcontent = document.createElement("div");
-    newcontent.classList.add('tabcontent');
-    newcontent.id = cityname;
-    newcontent.innerHTML = `<h3>${cityname}</h3><p>${cityname} is a city.</p>`;
-    let deleteButton = document.createElement("button");
-    deleteButton.textContent = "Delete this tab";
-    deleteButton.classList.add('styledbutton', 'styledbuttondelete');
-    deleteButton.onclick = (event) => deletetab(event.target);
-    newcontent.prepend(deleteButton);
-    document.body.insertBefore(newcontent, marker);
+  newtab.classList.add('tablinks');
+  newtab.setAttribute('data-cityname', cityname);
+  newtab.textContent = cityname;
+  newtab.onclick = (event) => openCity(event, cityname);
+  tab.append(newtab);
+  let newcontent = document.createElement("div");
+  newcontent.classList.add('tabcontent');
+  newcontent.id = cityname;
+  newcontent.innerHTML = `<h3>${cityname}</h3><p>${cityname} is a city.</p>`;
+  let deleteButton = document.createElement("button");
+  deleteButton.textContent = "Delete this tab";
+  deleteButton.classList.add('styledbutton', 'styledbuttondelete');
+  deleteButton.onclick = (event) => deletetab(event.target);
+  newcontent.prepend(deleteButton);
+  document.body.insertBefore(newcontent, marker);
+  if (tab.children.length >= 10) {
+    document.getElementById("addtab").disabled = true;
+    return;
+  }
+  if (disabledelete) {
+    [...document.querySelectorAll(".styledbuttondelete")].forEach((button) => {
+      button.disabled = false;
+    });
+    disabledelete = false;
+  }
 }
 function deletetab(button) {
     const parenttab = button.parentElement;
@@ -146,6 +167,27 @@ function deletetab(button) {
     parenttab.remove();
     if (nexttab != marker)
         document.querySelector(`[data-cityname="${nexttab.id}"]`).click();
+    else {
+      const previoustab = nexttab.previousElementSibling;
+      console.log("Pevious tab: ");
+      console.log(previoustab);
+      if (previoustab && previoustab.classList.contains('tabcontent'))
+          document.querySelector(`[data-cityname="${previoustab.id}"]`).click();
+    }
+  if (tab.children.length < 10)
+    document.getElementById("addtab").disabled = false;
+  if (tab.children.length == 1) {
+    [...document.querySelectorAll(".styledbuttondelete")].forEach((button) => {
+      button.disabled = true;
+    });
+    disabledelete = true;
+  }
+  else if (disabledelete) {
+    [...document.querySelectorAll(".styledbuttondelete")].forEach((button) => {
+      button.disabled = false;
+    });
+    disabledelete = false;
+  }
 }
 </script>
    
